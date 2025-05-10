@@ -16,7 +16,7 @@ temperature=1.0
 top_p=1.0
 strategy="fsdp_agent" # remove _agent for normal verl behavior
 action_stop_tokens="\`\`\`output"
-request_type="batch"
+request_type="one_by_one"
 max_turns=1
 kl_loss_coef=0.0
 kl_coef=0
@@ -51,12 +51,7 @@ export WANDB_MODE=offline
 export RAY_DEDUP_LOGS_ALLOW_REGEX="xieck-debug"
 export OC_CAUSE=1
 
-host=$(hostname -I | awk '{print $1}')
-port=$(shuf -i 30000-31000 -n 1)
-tool_server_url=http://$host:$port/get_observation
-python -m verl_tool.servers.serve --host $host --port $port --tool_type "python_code" --workers_per_tool 16 &
-server_pid=$!
-echo "Server (pid=$server_pid) started at $tool_server_url"
+tool_server_url=http://klb-dgx-125:15433/run_code
 
 PYTHONUNBUFFERED=1 python3 -m verl_tool.trainer.main_ppo \
     algorithm.adv_estimator=$rl_alg \
@@ -93,7 +88,6 @@ PYTHONUNBUFFERED=1 python3 -m verl_tool.trainer.main_ppo \
     +actor_rollout_ref.agent.max_turns=$max_turns \
     +actor_rollout_ref.agent.num_gpus=$n_gpus_per_node \
     +actor_rollout_ref.agent.action_stop_tokens=$action_stop_tokens_file \
-    +actor_rollout_ref.agent.request_type=$request_type \
     actor_rollout_ref.rollout.tensor_model_parallel_size=$tensor_model_parallel_size \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=$log_prob_micro_batch_size_per_gpu \
     actor_rollout_ref.rollout.name=vllm \
@@ -126,7 +120,3 @@ PYTHONUNBUFFERED=1 python3 -m verl_tool.trainer.main_ppo \
     trainer.save_freq=10 \
     trainer.test_freq=10 \
     trainer.total_epochs=2
-
-
-pkill -P -9 $server_pid
-kill -9 $kill $server_pid

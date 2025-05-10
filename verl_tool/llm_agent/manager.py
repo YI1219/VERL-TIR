@@ -649,9 +649,11 @@ class AgentActorManager:
         print(f" - Number of finished responses: {len([x for x in do_actions if not x])} / {len(do_actions)}")
         
         # Use sandbox by Bytedance to handle codes one by one
-        # TODO Add parameter to control using which tool server
-        response = self.send_batch_requests_one_by_one(batch_data) 
-        # response = self.send_batch_requests(batch_data)
+        # Add parameter to denote using one_by_one process server or batch process server
+        if self.config.request_type == "one_by_one":
+            response = self.send_batch_requests_one_by_one(batch_data)
+        elif self.config.request_type == "batch":
+            response = self.send_batch_requests(batch_data)
         active_observations = response['observations']
         active_dones = [int(x) for x in response['dones']]
         active_valid_actions = [int(x) for x in response['valids']]
