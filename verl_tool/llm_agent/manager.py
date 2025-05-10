@@ -573,6 +573,50 @@ class AgentActorManager:
             print(f"Error: {response.status_code}, {response.text}")
             raise ValueError(f"Error: {response.status_code}, {response.text}")
         return response.json()
+    
+    # For sandbox environment by Bytedance, url: https://github.com/bytedance/SandboxFusion. 
+    def send_batch_requests_one_by_one(self, batch_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Send batch requests to the tool server one by one.
+        Args:
+            batch_data: Batch data to send
+        Returns:
+            response: Response from the tool server
+        """
+        safe_payload = sanitize_request(batch_data)
+        response = []
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        for i in range(len(batch_data['trajectory_ids'])):
+            if batch_data['finish'] == False:
+                # TODO Add verification to check if the 'code' is valid
+                single_payload = {
+                    'code': safe_payload['actions'][i],
+                    'language': 'python',
+                }
+                res = requests.post(self.config.tool_server_url, headers=headers, json=single_payload, proxies=None)
+                res = res.text
+                if res['status'] != 'Success':
+                    print(f"Error: {res}")
+                    raise ValueError(f"Error: {res}")
+                response.append({
+                    'observations': res['run_result']['stdout'],
+                    'dones': res['run_result']['status'] == 'Finished',
+                    'valids': True
+                })
+            else:
+                response.append({
+                    'observations': '',
+                    'dones': True,
+                    'valids': False
+                })
+        response = {
+            'observations': [res['observations'] for res in response],
+            'dones': [res['dones'] for res in response],
+            'valids': [res['valids'] for res in response]
+        }
+        return response
 
     def interact_with_tool_server(
         self,
@@ -603,7 +647,11 @@ class AgentActorManager:
         if extra_fields is not None:
             batch_data['extra_fields'] = extra_fields
         print(f" - Number of finished responses: {len([x for x in do_actions if not x])} / {len(do_actions)}")
-        response = self.send_batch_requests(batch_data)
+        
+        # Use sandbox by Bytedance to handle codes one by one
+        # TODO Add parameter to control using which tool server
+        response = self.send_batch_requests_one_by_one(batch_data) 
+        # response = self.send_batch_requests(batch_data)
         active_observations = response['observations']
         active_dones = [int(x) for x in response['dones']]
         active_valid_actions = [int(x) for x in response['valids']]

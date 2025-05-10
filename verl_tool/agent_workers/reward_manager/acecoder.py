@@ -173,7 +173,8 @@ class AceCoderRewardManager:
         # batch decode the list of responses and prompts
         response_str = self.tokenizer.batch_decode(response_ids, skip_special_tokens=True)
         prompt_str = self.tokenizer.batch_decode(prompt_ids, skip_special_tokens=True)
-        
+       
+        print(type(data))
         # retrieve the list of ground truths/test cases
         if isinstance(data[0].non_tensor_batch['reward_model']['ground_truth'], list):
             ground_truth = [data_item.non_tensor_batch['reward_model']['ground_truth'] for data_item in data]

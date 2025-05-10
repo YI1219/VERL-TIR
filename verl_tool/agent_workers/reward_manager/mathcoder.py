@@ -81,22 +81,29 @@ class MathCoderRewardManager:
         ]
         code_data = data[code_data_idxs]
         math_data = data[math_data_idxs]
-        code_reward = self.AceCoderRewardManager(code_data, return_dict=True)
-        math_reward = self.ToRLRewardManager(math_data, return_dict=True)
-        print("len code_reward", len(code_reward['reward_tensor']))
-        print("len math_reward", len(math_reward['reward_tensor']))
-        # put the code and math reward together in the original order
-        reward_tensor[code_data_idxs] = code_reward['reward_tensor']
-        reward_tensor[math_data_idxs] = math_reward['reward_tensor']
-        
-        for k, v in code_reward['reward_extra_info'].items():
-            if k not in reward_extra_info:
-                for i in range(len(v)):
-                    reward_extra_info[f"code_{k}"][code_data_idxs[i]] = v[i]
-        for k, v in math_reward['reward_extra_info'].items():
-            if k not in reward_extra_info:
-                for i in range(len(v)):
-                    reward_extra_info[f"math_{k}"][math_data_idxs[i]] = v[i]
+
+        # Ensure that the code can handle cases where code_data or math_data is empty.
+        # This allows the reward computation logic to execute even if one of the data subsets is missing.
+        if len(code_data) > 0:
+            code_reward = self.AceCoderRewardManager(code_data, return_dict=True)
+            print("len code_reward", len(code_reward['reward_tensor']))
+            # put the code and math reward together in the original order
+            reward_tensor[code_data_idxs] = code_reward['reward_tensor']
+
+            for k, v in code_reward['reward_extra_info'].items():
+                if k not in reward_extra_info:
+                    for i in range(len(v)):
+                        reward_extra_info[f"code_{k}"][code_data_idxs[i]] = v[i]
+                        
+        if len(math_data) > 0:
+            math_reward = self.ToRLRewardManager(math_data, return_dict=True)
+            print("len math_reward", len(math_reward['reward_tensor']))
+            reward_tensor[math_data_idxs] = math_reward['reward_tensor']
+
+            for k, v in math_reward['reward_extra_info'].items():
+                if k not in reward_extra_info:
+                    for i in range(len(v)):
+                        reward_extra_info[f"math_{k}"][math_data_idxs[i]] = v[i]
         
         # Save the records
         prompts = self.tokenizer.batch_decode(

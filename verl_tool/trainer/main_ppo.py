@@ -100,6 +100,10 @@ class TaskRunner:
             from verl.workers.fsdp_workers import CriticWorker
             from verl.single_controller.ray import RayWorkerGroup
             ray_worker_group_cls = RayWorkerGroup
+
+            # The verl repository introduced 'fsdp2', and the following code requires these two parameters to be set back to 'fsdp'
+            config.actor_rollout_ref.actor.strategy = 'fsdp'
+            config.critic.strategy = 'fsdp'
             
         elif config.actor_rollout_ref.actor.strategy == 'megatron':
             assert config.actor_rollout_ref.actor.strategy == config.critic.strategy
