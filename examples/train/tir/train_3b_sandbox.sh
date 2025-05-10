@@ -49,13 +49,14 @@ export VERL_PPO_LOGGING_LEVEL=DEBUG
 export WANDB_MODE=offline                                                                                                                                                                                               
 export RAY_DEDUP_LOGS_ALLOW_REGEX="xieck-debug"
 export OC_CAUSE=1
+export SANDBOX_FUSION_URL="http://klb-dgx-125:15433"
 
-#host=$(hostname -I | awk '{print $1}')
-#port=$(shuf -i 30000-31000 -n 1)
-#tool_server_url=http://$host:$port/get_observation
-#python -m verl_tool.servers.serve --host $host --port $port --tool_type "python_code" --workers_per_tool 16 &
-#server_pid=$!
-#echo "Server (pid=$server_pid) started at $tool_server_url"
+host=$(hostname -I | awk '{print $1}')
+port=$(shuf -i 30000-31000 -n 1)
+tool_server_url=http://$host:$port/get_observation
+python -m verl_tool.servers.serve --host $host --port $port --tool_type "sandbox_fusion" --workers_per_tool 4 &
+server_pid=$!
+echo "Server (pid=$server_pid) started at $tool_server_url"
 
 
 PYTHONUNBUFFERED=1 python3 -m verl_tool.trainer.main_ppo \

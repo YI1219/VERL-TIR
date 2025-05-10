@@ -574,6 +574,59 @@ class AgentActorManager:
             raise ValueError(f"Error: {response.status_code}, {response.text}")
         return response.json()
     
+    def sandbox_parse_action(self, action: str) -> Tuple[Dict[str, Any], bool]:
+        """
+        Parse the raw action string to extract code and language.
+        
+        Args:
+            action: The raw action string (LLM response)
+            
+        Returns:
+            Tuple containing:
+            - Dictionary with 'code' and 'language' keys
+            - Boolean indicating if the parsing was successful
+        """
+        # Try to extract code from different formats
+        code_block = None
+        language = "python"  # Default language
+        
+        # Try explicit XML tags with language
+        lang_tag_match = re.search(r"<([a-zA-Z0-9_]+)>(.*?)</\1>", action, re.DOTALL)
+        if lang_tag_match:
+            language = lang_tag_match.group(1).lower()
+            code_block = lang_tag_match.group(2).strip()
+        
+        # Try markdown code blocks with language
+        if not code_block:
+            md_match = re.search(r"```([a-zA-Z0-9_]+)(.*?)```", action, re.DOTALL)
+            if md_match:
+                language = md_match.group(1).lower()
+                code_block = md_match.group(2).strip()
+        
+        # Try plain markdown code blocks
+        if not code_block:
+            md_match = re.search(r"```(.*?)```", action, re.DOTALL)
+            if md_match:
+                code_block = md_match.group(1).strip()
+        
+        if not code_block:
+            return {}, False
+        
+        # Map some common language aliases
+        language_map = {
+            "js": "javascript",
+            "py": "python",
+            "ts": "typescript",
+            "rb": "ruby",
+            "sh": "bash",
+            # Add more mappings as needed
+        }
+        
+        # Normalize language name
+        language = language_map.get(language, language)
+        
+        return {"code": code_block, "language": language}, True
+    
     # For sandbox environment by Bytedance, url: https://github.com/bytedance/SandboxFusion. 
     def send_batch_requests_one_by_one(self, batch_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -590,21 +643,25 @@ class AgentActorManager:
         }
         for i in range(len(batch_data['trajectory_ids'])):
             if batch_data['finish'] == False:
-                # TODO Add verification to check if the 'code' is valid
-                single_payload = {
-                    'code': safe_payload['actions'][i],
-                    'language': 'python',
-                }
-                res = requests.post(self.config.tool_server_url, headers=headers, json=single_payload, proxies=None)
-                res = res.text
-                if res['status'] != 'Success':
-                    print(f"Error: {res}")
-                    raise ValueError(f"Error: {res}")
-                response.append({
-                    'observations': res['run_result']['stdout'],
-                    'dones': res['run_result']['status'] == 'Finished',
-                    'valids': True
-                })
+                # Add verification to check if the 'code' is valid
+                single_payload, is_valid = self.sandbox_parse_action(batch_data['actions'][i])
+                if not is_valid:
+                    response.append({
+                        'observations': "No valid code block found. Please provide code in markdown format ```language\ncode\n``` or <language>code</language>.",
+                        'dones': True,
+                        'valids': False
+                    })
+                else:
+                    res = requests.post(self.config.tool_server_url, headers=headers, json=single_payload, proxies=None)
+                    res = res.text
+                    if res['status'] != 'Success':
+                        print(f"Error: {res}")
+                        raise ValueError(f"Error: {res}")
+                    response.append({
+                        'observations': res['run_result']['stdout'],
+                        'dones': res['run_result']['status'] == 'Finished',
+                        'valids': True
+                    })
             else:
                 response.append({
                     'observations': '',
